@@ -88,25 +88,16 @@ async def sunset_reminder():
             time_until_sunset = (
                 sunset_time - now - datetime.timedelta(minutes=10)
             ).total_seconds()
-            logger.info("Waiting for %s seconds until sunset", time_until_sunset)
-            await asyncio.sleep(time_until_sunset)
+            if time_until_sunset > 0:
+                logger.info("Waiting for %s seconds until sunset", time_until_sunset)
+                await asyncio.sleep(min(time_until_sunset, 60))
+            else:
+                logger.info("Sending sunset reminder immediately")
+                await send_sunset_reminder()
         else:
             sunset_warning_time = sunset_time - datetime.timedelta(minutes=10)
             if now >= sunset_warning_time:
-                cur = conn.cursor()
-                cur.execute("SELECT user_id FROM sunset_reminder;")
-                opted_in_users = []
-                for row in cur.fetchall():
-                    user = bot.get_user(row[0])
-                    if user:
-                        opted_in_users.append(user.mention)
-                        logger.info("Added user %s to sunset reminder", row[0])
-                message = f"Just a reminder that the sun will set in ten minutes! {', '.join(opted_in_users)}"
-                channel = bot.get_channel(bot.announce_channel_id)
-                await channel.send(message)
-                logger.info(
-                    "Sent sunset reminder to channel %s", bot.announce_channel_id
-                )
+                await send_sunset_reminder()
                 logger.info("Waiting until tomorrow")
                 await asyncio.sleep(23 * 60 * 60)
             else:
@@ -117,7 +108,22 @@ async def sunset_reminder():
                     "Waiting for %s seconds until sunset warning",
                     time_until_warning,
                 )
-                await asyncio.sleep(time_until_warning)
+                await asyncio.sleep(min(time_until_warning, 60))
+
+
+async def send_sunset_reminder():
+    cur = conn.cursor()
+    cur.execute("SELECT user_id FROM sunset_reminder;")
+    opted_in_users = []
+    for row in cur.fetchall():
+        user = bot.get_user(row[0])
+        if user:
+            opted_in_users.append(user.mention)
+            logger.info("Added user %s to sunset reminder", row[0])
+    message = f"Just a reminder that the sun will set in ten minutes! {', '.join(opted_in_users)}"
+    channel = bot.get_channel(bot.announce_channel_id)
+    await channel.send(message)
+    logger.info("Sent sunset reminder to channel %s", bot.announce_channel_id)
 
 
 city = LocationInfo(
