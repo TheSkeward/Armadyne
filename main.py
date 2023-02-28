@@ -24,6 +24,11 @@ bot = commands.Bot(intents=intents, command_prefix="$")
 
 token = os.environ.get("DISCORD_TOKEN")
 bot.announce_channel_id = int(os.environ.get("ANNOUNCE_CHANNEL_ID"))
+location_name = os.environ.get("LOCATION_NAME")
+location_region = os.environ.get("LOCATION_REGION")
+location_timezone = os.environ.get("LOCATION_TIMEZONE")
+location_lat = float(os.environ.get("LOCATION_LAT"))
+location_lon = float(os.environ.get("LOCATION_LON"))
 
 global conn
 
@@ -75,7 +80,7 @@ async def optout(ctx):
 async def sunset_reminder():
     await bot.wait_until_ready()
     while not bot.is_closed():
-        tz = pytz.timezone(timezone)
+        tz = pytz.timezone(location_timezone)
         now = datetime.datetime.now(tz)
         s = sun(city.observer, date=now)
         sunset_time = s["sunset"]
@@ -115,8 +120,9 @@ async def sunset_reminder():
                 await asyncio.sleep(time_until_warning)
 
 
-timezone = "America/Los_Angeles"
-city = LocationInfo("Elysium", "Berkeley", timezone, 37.872, -122.285)
+city = LocationInfo(
+    location_name, location_region, location_timezone, location_lat, location_lon
+)
 
 logger.info("Running bot!")
 bot.run(token)
