@@ -84,31 +84,29 @@ async def sunset_reminder():
         now = datetime.datetime.now(tz)
         s = sun(city.observer, date=now)
         sunset_time = s["sunset"]
-        if now.date() < sunset_time.date():
-            time_until_sunset = (
-                sunset_time - now - datetime.timedelta(minutes=10)
-            ).total_seconds()
-            if time_until_sunset > 0:
-                logger.info("Waiting for %s seconds until sunset", time_until_sunset)
-                await asyncio.sleep(min(time_until_sunset, 60))
-            else:
-                logger.info("Sending sunset reminder immediately")
+        sunset_warning_time = sunset_time - datetime.timedelta(minutes=10)
+
+        if now.date() == sunset_warning_time.date():
+            if sunset_warning_time <= now < sunset_time:
                 await send_sunset_reminder()
-        else:
-            sunset_warning_time = sunset_time - datetime.timedelta(minutes=10)
-            if now >= sunset_warning_time:
-                await send_sunset_reminder()
-                logger.info("Waiting until tomorrow")
-                await asyncio.sleep(23 * 60 * 60)
-            else:
-                time_until_warning = (
-                    sunset_warning_time - now - datetime.timedelta(minutes=10)
+                time_until_tomorrow = (
+                    (now + datetime.timedelta(days=1)).date() - now.date()
                 ).total_seconds()
+                logger.info("Waiting until tomorrow")
+                await asyncio.sleep(time_until_tomorrow)
+            else:
+                time_until_warning = (sunset_warning_time - now).total_seconds()
                 logger.info(
                     "Waiting for %s seconds until sunset warning",
                     time_until_warning,
                 )
                 await asyncio.sleep(min(time_until_warning, 60))
+        else:
+            time_until_tomorrow = (
+                (now + datetime.timedelta(days=1)).date() - now.date()
+            ).total_seconds()
+            logger.info("Waiting until tomorrow")
+            await asyncio.sleep(time_until_tomorrow)
 
 
 async def send_sunset_reminder():
