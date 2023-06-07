@@ -2,7 +2,6 @@ import asyncio
 import datetime
 import logging
 import os
-import sqlite3
 
 import discord
 import pytz
@@ -10,6 +9,8 @@ from astral import LocationInfo
 from astral.sun import sun
 from discord.ext import commands
 from dotenv import load_dotenv
+
+from db_handler import DBHandler
 
 logger = logging.getLogger("armadyne")
 
@@ -30,39 +31,34 @@ location_timezone = os.environ.get("LOCATION_TIMEZONE")
 location_lat = float(os.environ.get("LOCATION_LAT"))
 location_lon = float(os.environ.get("LOCATION_LON"))
 
-global conn
+db_handler = DBHandler("armadyne.db")
+location_info = LocationInfo(
+    location_name, location_region, location_timezone, location_lat, location_lon
+)
 
 
 @bot.event
 async def on_ready():
     """Initialization"""
-    global conn
-    conn = sqlite3.connect("armadyne.db")
-    cur = conn.cursor()
+    db_handler.create_tables("tables.sql")
     logger.info("Connected to armadyne.db")
-    cur.executescript(open("tables.sql").read())
-    conn.commit()
     logger.info("Logged in as %s (%s)", bot.user.name, bot.user.id)
     bot.loop.create_task(sunset_reminder())
+    # Cancel the old sunset reminder task if it exists
+    if bot.sunset_reminder_task:
+        bot.sunset_reminder_task.cancel()
+        # Start a new sunset reminder task
+    bot.sunset_reminder_task = bot.loop.create_task(sunset_reminder())
 
 
 @bot.command()
 async def optin(ctx):
-    global conn
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT user_id FROM sunset_reminder WHERE user_id = ?;", (ctx.author.id,)
-    )
-    result = cur.fetchone()
-    if result:
+    if db_handler.is_user_opted_in(ctx.author.id):
         await ctx.send(
             f"{ctx.author.mention} has already opted in to receive sunset reminders."
         )
     else:
-        cur.execute(
-            "INSERT INTO sunset_reminder (user_id) VALUES (?);", (ctx.author.id,)
-        )
-        conn.commit()
+        db_handler.add_user(ctx.author.id)
         await ctx.send(
             f"{ctx.author.mention} has opted in to receive sunset reminders."
         )
@@ -70,10 +66,7 @@ async def optin(ctx):
 
 @bot.command()
 async def optout(ctx):
-    global conn
-    cur = conn.cursor()
-    cur.execute("DELETE FROM sunset_reminder WHERE user_id = ?;", (ctx.author.id,))
-    conn.commit()
+    db_handler.remove_user(ctx.author.id)
     await ctx.send(f"{ctx.author.mention} has opted out of sunset reminders.")
 
 
@@ -82,9 +75,9 @@ async def sunset_reminder():
     while not bot.is_closed():
         tz = pytz.timezone(location_timezone)
         now = datetime.datetime.now(tz)
-        s = sun(city.observer, date=now)
+        s = sun(location_info.observer, date=now)
         sunset_time = s["sunset"]
-        sunset_warning_time = sunset_time - datetime.timedelta(minutes=10)
+        sunset_warning_time = sunset_time - datetime.timedelta(minutes=15)
 
         if now.date() == sunset_warning_time.date():
             if sunset_warning_time <= now < sunset_time:
@@ -110,23 +103,18 @@ async def sunset_reminder():
 
 
 async def send_sunset_reminder():
-    cur = conn.cursor()
-    cur.execute("SELECT user_id FROM sunset_reminder;")
-    opted_in_users = []
-    for row in cur.fetchall():
+    opted_in_users = db_handler.get_users()
+    user_mentions = []
+    for row in opted_in_users:
         user = bot.get_user(row[0])
         if user:
-            opted_in_users.append(user.mention)
+            user_mentions.append(user.mention)
             logger.info("Added user %s to sunset reminder", row[0])
-    message = f"Just a reminder that the sun will set in ten minutes! {', '.join(opted_in_users)}"
+    message = f"Just a reminder that the sun will set in fifteen minutes! {', '.join(user_mentions)}"
     channel = bot.get_channel(bot.announce_channel_id)
     await channel.send(message)
     logger.info("Sent sunset reminder to channel %s", bot.announce_channel_id)
 
-
-city = LocationInfo(
-    location_name, location_region, location_timezone, location_lat, location_lon
-)
 
 logger.info("Running bot!")
 bot.run(token)
