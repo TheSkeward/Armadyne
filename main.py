@@ -1,7 +1,11 @@
 import asyncio
+from datetime import datetime, timedelta
+
+import perpetuo
+
+perpetuo.dwim()
 import logging
 import os
-from datetime import datetime, timedelta
 
 import discord
 import pytz
@@ -44,18 +48,10 @@ async def on_ready():
     logger.info("Connected to armadyne.db")
     logger.info("Logged in as %s (%s)", bot.user.name, bot.user.id)
 
-    # Initialize the sunset reminder task
-    bot.sunset_reminder_task = None
-
-    # Create the sunset reminder task
-    bot.loop.create_task(sunset_reminder())
-
-    # Cancel the old sunset reminder task if it exists
     if bot.sunset_reminder_task:
         bot.sunset_reminder_task.cancel()
         logger.info("Old sunset reminder task cancelled")
 
-    # Start a new sunset reminder task
     bot.sunset_reminder_task = bot.loop.create_task(sunset_reminder())
 
 
@@ -82,32 +78,30 @@ async def sunset_reminder():
     await bot.wait_until_ready()
     while not bot.is_closed():
         tz = pytz.timezone(location_timezone)
-        now = datetime.now(tz)
-        s = sun(location_info.observer, date=now)
-        sunset_time = s["sunset"]
-        sunset_warning_time = sunset_time - timedelta(minutes=15)
 
-        if now.date() == sunset_warning_time.date():
-            if sunset_warning_time <= now < sunset_time:
-                await send_sunset_reminder()
-                next_sunset_warning_time = sunset_warning_time + timedelta(days=1)
-                time_until_next_warning = (
-                    next_sunset_warning_time - now
-                ).total_seconds()
-                logger.info("Waiting until next sunset warning")
-                await asyncio.sleep(time_until_next_warning)
+        current_date = datetime.now(tz).date()
+
+        while True:
+            now = datetime.now(tz)
+            s = sun(location_info.observer, date=current_date)
+            sunset_time = s["sunset"]
+            sunset_warning_time = sunset_time - timedelta(minutes=15)
+
+            if now.date() == sunset_warning_time.date():
+                if sunset_warning_time <= now < sunset_time:
+                    await send_sunset_reminder()
+
+                    current_date += timedelta(days=1)
+                    continue
+                else:
+                    time_until_warning = (sunset_warning_time - now).total_seconds()
+                    logger.info(
+                        "Waiting for %s seconds until sunset warning",
+                        time_until_warning,
+                    )
+                    await asyncio.sleep(min(time_until_warning, 60))
             else:
-                time_until_warning = (sunset_warning_time - now).total_seconds()
-                logger.info(
-                    "Waiting for %s seconds until sunset warning",
-                    time_until_warning,
-                )
-                await asyncio.sleep(min(time_until_warning, 60))
-        else:
-            next_sunset_warning_time = sunset_warning_time + timedelta(days=1)
-            time_until_next_warning = (next_sunset_warning_time - now).total_seconds()
-            logger.info("Waiting until next sunset warning")
-            await asyncio.sleep(time_until_next_warning)
+                current_date = now.date()
 
 
 async def send_sunset_reminder():
