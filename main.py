@@ -25,7 +25,15 @@ logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
 
 intents = discord.Intents.all()
-bot = commands.Bot(intents=intents, command_prefix="$")
+
+
+class SunsetReminderBot(commands.Bot):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.sunset_reminder_task = None
+
+
+bot = SunsetReminderBot(intents=intents, command_prefix="$")
 
 token = os.environ.get("DISCORD_TOKEN")
 bot.announce_channel_id = int(os.environ.get("ANNOUNCE_CHANNEL_ID"))
