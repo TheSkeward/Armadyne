@@ -1,3 +1,4 @@
+# bot.py
 import asyncio
 from datetime import datetime, timedelta
 
@@ -84,10 +85,12 @@ async def optout(ctx):
 
 async def sunset_reminder():
     await bot.wait_until_ready()
+    print("sunset_reminder function has started.")  # Debug point 1
     while not bot.is_closed():
         tz = pytz.timezone(location_timezone)
 
         current_date = datetime.now(tz).date()
+        print(f"Current date set to {current_date}.")  # Debug point 2
 
         while True:
             now = datetime.now(tz)
@@ -95,21 +98,33 @@ async def sunset_reminder():
             sunset_time = s["sunset"]
             sunset_warning_time = sunset_time - timedelta(minutes=15)
 
+            print(
+                f"Now: {now}, Sunset Time: {sunset_time}, Sunset Warning Time: {sunset_warning_time}"
+            )  # Debug point 3
+
             if now.date() == sunset_warning_time.date():
+                print("Date condition met.")  # Debug point 4
                 if sunset_warning_time <= now < sunset_time:
+                    print("Sending sunset reminder.")  # Debug point 5
                     await send_sunset_reminder()
 
                     current_date += timedelta(days=1)
+                    print(
+                        f"Incremented current_date to {current_date}."
+                    )  # Debug point 6
                     continue
                 else:
                     time_until_warning = (sunset_warning_time - now).total_seconds()
-                    logger.info(
-                        "Waiting for %s seconds until sunset warning",
-                        time_until_warning,
-                    )
+                    print(
+                        f"Time until warning: {time_until_warning} seconds."
+                    )  # Debug point 7
                     await asyncio.sleep(min(time_until_warning, 60))
             else:
+                print("Date condition not met, re-evaluating.")  # Debug point 8
                 current_date = now.date()
+                print(f"Current date set to {current_date}.")  # Debug point 9
+
+        await asyncio.sleep(1)  # Added this to prevent 100% CPU usage
 
 
 async def send_sunset_reminder():
