@@ -34,7 +34,7 @@ class ArmadyneConfig:
         value = None
         if key is None and section is None and guild is None and channel is None:
             value = self.config_dict or self.defaults
-        elif key is not None:
+        elif key is not None and guild is not None and channel is not None:
             value = self.config_dict.get(f"Guild {guild:d} - {channel:d}", {})
         if value is {} and use_category_as_channel_fallback and category:
             value = self.config_dict.get(f"Guild {guild:d} - {category:d}", {})
