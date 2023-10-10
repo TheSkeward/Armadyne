@@ -3,7 +3,9 @@ import asyncio
 from datetime import datetime, timedelta
 
 import perpetuo
+import uvloop
 
+uvloop.install()
 perpetuo.dwim()
 import logging
 import os
@@ -112,6 +114,12 @@ async def sunset_reminder():
                     print(
                         f"Incremented current_date to {current_date}."
                     )  # Debug point 6
+                    continue
+                elif now >= sunset_time:  # Check if current time is past sunset
+                    current_date += timedelta(days=1)
+                    print(
+                        f"Incremented current_date to {current_date} because sunset time has passed."
+                    )  # New debug point
                     continue
                 else:
                     time_until_warning = (sunset_warning_time - now).total_seconds()
