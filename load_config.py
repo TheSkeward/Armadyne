@@ -1,6 +1,6 @@
 import configparser
 import os
-from typing import Dict
+from typing import Dict, Iterable, Union
 
 import discord
 
@@ -12,6 +12,8 @@ class ArmadyneConfig:
         configparse = configparser.ConfigParser()
         self.client = None
         configparse.read(base_config_path)
+        config: Dict[str, Union[Dict, Iterable, int, float, str]] = {}
+        self.config_dict = config
         self.defaults = ({},)
 
     def get(
