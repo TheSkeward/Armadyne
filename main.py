@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import perpetuo
 import uvloop
+from systemd import journal
 
 uvloop.install()
 perpetuo.dwim()
@@ -24,6 +25,13 @@ logger = logging.getLogger("armadyne")
 import load_config
 
 config = load_config.ArmadyneConfig()
+
+# Enable logging to SystemD
+logger.addHandler(
+    journal.JournalHandler(
+        SYSLOG_IDENTIFIER=config.get(section="discord", key="botLogName")
+    )
+)
 
 load_dotenv()
 
@@ -99,6 +107,14 @@ async def sunset_reminder():
 
     while not bot.is_closed():
         now = datetime.now(tz)
+
+        # If the function's internal date is behind the system date, correct it
+        if now.date() > current_date:
+            current_date = now.date()
+            print(
+                f"Current date set to {current_date} due to system date mismatch."
+            )  # New debug point
+
         s = sun(location_info.observer, date=current_date)
         sunset_time = s["sunset"]
         sunset_warning_time = sunset_time - timedelta(minutes=15)
@@ -107,29 +123,28 @@ async def sunset_reminder():
             f"Now: {now}, Sunset Time: {sunset_time}, Sunset Warning Time: {sunset_warning_time}"
         )  # Debug point 3
 
-        if now.date() == sunset_warning_time.date():
-            print("Date condition met.")  # Debug point 4
-            if sunset_warning_time <= now < sunset_time:
-                print("Sending sunset reminder.")  # Debug point 5
-                await send_sunset_reminder()
-                current_date += timedelta(days=1)
-                print(f"Incremented current_date to {current_date}.")  # Debug point 6
-            elif now >= sunset_time:  # Check if current time is past sunset
-                current_date += timedelta(days=1)
-                print(
-                    f"Incremented current_date to {current_date} because sunset time has passed."
-                )  # New debug point
-            else:
-                time_until_warning = (sunset_warning_time - now).total_seconds()
-                print(
-                    f"Time until warning: {time_until_warning} seconds."
-                )  # Debug point 7
-                await asyncio.sleep(min(time_until_warning, 60))
-        else:
+        # If the current time is within the sunset warning period
+        if sunset_warning_time <= now < sunset_time:
+            print("Sending sunset reminder.")  # Debug point 5
+            await send_sunset_reminder()
+            current_date += timedelta(days=1)
+            print(f"Incremented current_date to {current_date}.")  # Debug point 6
+            await asyncio.sleep(
+                (sunset_time - now).total_seconds()
+            )  # Sleep until sunset
+
+        # If the current time is past sunset
+        elif now >= sunset_time:
             current_date += timedelta(days=1)
             print(
-                f"Incremented current_date to {current_date} due to date mismatch."
+                f"Incremented current_date to {current_date} because sunset time has passed."
             )  # New debug point
+
+        # If neither of the above
+        else:
+            time_until_warning = (sunset_warning_time - now).total_seconds()
+            print(f"Time until warning: {time_until_warning} seconds.")  # Debug point 7
+            await asyncio.sleep(time_until_warning)  # Sleep until sunset warning time
 
         await asyncio.sleep(1)  # Prevent 100% CPU usage
 
