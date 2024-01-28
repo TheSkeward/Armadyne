@@ -1,15 +1,9 @@
 # bot.py
 import asyncio
-from datetime import datetime, timedelta
-
-import perpetuo
-import uvloop
-from systemd import journal
-
-uvloop.install()
-perpetuo.dwim()
+import calendar
 import logging
 import os
+from datetime import datetime, timedelta
 
 import discord
 import pytz
@@ -20,24 +14,21 @@ from dotenv import load_dotenv
 
 from db_handler import DBHandler
 
+# command handler class
+
+
+class CommandHandler:
+
+    # constructor
+    def __init__(self, client):
+        self.client = client
+
+
 logger = logging.getLogger("armadyne")
-
-import load_config
-
-config = load_config.ArmadyneConfig()
-
-# Enable logging to SystemD
-logger.addHandler(
-    journal.JournalHandler(
-        SYSLOG_IDENTIFIER=config.get(section="discord", key="botLogName")
-    )
-)
 
 load_dotenv()
 
 logger.setLevel(logging.INFO)
-
-logger.addHandler(logging.StreamHandler())
 
 intents = discord.Intents.all()
 
@@ -157,7 +148,17 @@ async def send_sunset_reminder():
         if user:
             user_mentions.append(user.mention)
             logger.info("Added user %s to sunset reminder", row[0])
+
+    today = datetime.now(pytz.timezone(location_timezone)).date()
+    last_day_of_month = calendar.monthrange(today.year, today.month)[1]
+    fifth_day_before_end = (
+        today == datetime(today.year, today.month, last_day_of_month - 4).date()
+    )
+
     message = f"Just a reminder that the sun will set in fifteen minutes! {', '.join(user_mentions)}"
+    if fifth_day_before_end:
+        message += "\nAlso, a friendly reminder: Rent is due in five days!"
+
     channel = bot.get_channel(bot.announce_channel_id)
     await channel.send(message)
     logger.info("Sent sunset reminder to channel %s", bot.announce_channel_id)
