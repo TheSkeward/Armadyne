@@ -22,6 +22,7 @@ class CommandHandler:
     # constructor
     def __init__(self, client):
         self.client = client
+        self.commands = []
 
 
 logger = logging.getLogger("armadyne")
@@ -43,6 +44,7 @@ bot = SunsetReminderBot(intents=intents, command_prefix="$")
 
 token = os.environ.get("DISCORD_TOKEN")
 bot.announce_channel_id = int(os.environ.get("ANNOUNCE_CHANNEL_ID"))
+bot.rent_reminder_channel_id = int(os.environ.get("RENT_REMINDER_CHANNEL_ID"))
 location_name = os.environ.get("LOCATION_NAME")
 location_region = os.environ.get("LOCATION_REGION")
 location_timezone = os.environ.get("LOCATION_TIMEZONE")
@@ -127,9 +129,6 @@ async def sunset_reminder():
         # If the current time is past sunset
         elif now >= sunset_time:
             current_date += timedelta(days=1)
-            print(
-                f"Incremented current_date to {current_date} because sunset time has passed."
-            )  # New debug point
 
         # If neither of the above
         else:
@@ -155,13 +154,17 @@ async def send_sunset_reminder():
         today == datetime(today.year, today.month, last_day_of_month - 4).date()
     )
 
-    message = f"Just a reminder that the sun will set in fifteen minutes! {', '.join(user_mentions)}"
-    if fifth_day_before_end:
-        message += "\nAlso, a friendly reminder: Rent is due in five days!"
+    sunset_message = f"Just a reminder that the sun will set in fifteen minutes! {', '.join(user_mentions)}"
 
-    channel = bot.get_channel(bot.announce_channel_id)
-    await channel.send(message)
+    sunset_channel = bot.get_channel(bot.announce_channel_id)
+    await sunset_channel.send(sunset_message)
     logger.info("Sent sunset reminder to channel %s", bot.announce_channel_id)
+
+    if fifth_day_before_end:
+        rent_message = "Also, a friendly reminder: Rent is due in five days!"
+        rent_channel = bot.get_channel(bot.rent_reminder_channel_id)
+        await rent_channel.send(rent_message)
+        logger.info("Sent rent reminder to channel %s", bot.rent_reminder_channel_id)
 
 
 logger.info("Running bot!")
