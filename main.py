@@ -24,6 +24,9 @@ class CommandHandler:
         self.client = client
         self.commands = []
 
+    def add_command(self, command):
+        self.commands.append(command)
+
 
 logger = logging.getLogger("armadyne")
 
@@ -90,6 +93,22 @@ async def optout(ctx):
     await ctx.send(f"{ctx.author.mention} has opted out of sunset reminders.")
 
 
+@bot.command()
+async def mark_rent_paid(ctx):
+    """Marks rent as paid for the month."""
+    db_handler.set_rent_paid(True)
+    await ctx.send("Rent has been marked as paid. Thank you!")
+
+
+@bot.command()
+async def check_rent_status(ctx):
+    """Checks if rent has been marked as paid for the month."""
+    if db_handler.is_rent_paid():
+        await ctx.send("Rent has been marked as paid for this month.")
+    else:
+        await ctx.send("Rent has not been marked as paid yet for this month.")
+
+
 async def sunset_reminder():
     await bot.wait_until_ready()
     print("sunset_reminder function has started.")  # Debug point 1
@@ -100,6 +119,10 @@ async def sunset_reminder():
 
     while not bot.is_closed():
         now = datetime.now(tz)
+
+        if now.day == 1:
+            db_handler.set_rent_paid(False)
+            logger.info("Reset rent paid status for the new month.")
 
         # If the function's internal date is behind the system date, correct it
         if now.date() > current_date:
@@ -133,7 +156,6 @@ async def sunset_reminder():
         # If neither of the above
         else:
             time_until_warning = (sunset_warning_time - now).total_seconds()
-            print(f"Time until warning: {time_until_warning} seconds.")  # Debug point 7
             await asyncio.sleep(time_until_warning)  # Sleep until sunset warning time
 
         await asyncio.sleep(1)  # Prevent 100% CPU usage
@@ -160,8 +182,8 @@ async def send_sunset_reminder():
     await sunset_channel.send(sunset_message)
     logger.info("Sent sunset reminder to channel %s", bot.announce_channel_id)
 
-    if fifth_day_before_end:
-        rent_message = "Also, a friendly reminder: Rent is due in five days!"
+    if fifth_day_before_end and not db_handler.is_rent_paid():
+        rent_message = "A friendly reminder: Rent is due in five days!"
         rent_channel = bot.get_channel(bot.rent_reminder_channel_id)
         await rent_channel.send(rent_message)
         logger.info("Sent rent reminder to channel %s", bot.rent_reminder_channel_id)
