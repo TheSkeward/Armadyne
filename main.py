@@ -27,6 +27,13 @@ class CommandHandler:
     def add_command(self, command):
         self.commands.append(command)
 
+    async def command_handler(self, message):
+        for command in self.commands:
+            if message.content.startswith(command["trigger"]):
+                args = message.content.split(" ")
+                if args[0] == command["trigger"]:
+                    args.pop(0)
+
 
 logger = logging.getLogger("armadyne")
 
@@ -119,17 +126,15 @@ async def sunset_reminder():
 
     while not bot.is_closed():
         now = datetime.now(tz)
+        today = now.date()
 
         if now.day == 1:
             db_handler.set_rent_paid(False)
             logger.info("Reset rent paid status for the new month.")
 
         # If the function's internal date is behind the system date, correct it
-        if now.date() > current_date:
-            current_date = now.date()
-            print(
-                f"Current date set to {current_date} due to system date mismatch."
-            )  # New debug point
+        if today > current_date:
+            current_date = today
 
         s = sun(location_info.observer, date=current_date)
         sunset_time = s["sunset"]
@@ -158,7 +163,22 @@ async def sunset_reminder():
             time_until_warning = (sunset_warning_time - now).total_seconds()
             await asyncio.sleep(time_until_warning)  # Sleep until sunset warning time
 
+        last_day_of_month = calendar.monthrange(today.year, today.month)[1]
+        reminder_start_day = last_day_of_month - 4
+        if (
+            reminder_start_day <= today.day <= last_day_of_month
+            and not db_handler.is_rent_paid()
+        ):
+            await send_rent_reminder()
+
         await asyncio.sleep(1)  # Prevent 100% CPU usage
+
+
+async def send_rent_reminder():
+    rent_message = "A friendly reminder: Rent is due soon!"
+    rent_channel = bot.get_channel(bot.rent_reminder_channel_id)
+    await rent_channel.send(rent_message)
+    logger.info("Sent rent reminder to channel %s", bot.rent_reminder_channel_id)
 
 
 async def send_sunset_reminder():
