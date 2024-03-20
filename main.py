@@ -33,6 +33,9 @@ class CommandHandler:
                 args = message.content.split(" ")
                 if args[0] == command["trigger"]:
                     args.pop(0)
+                    if command["arg_num"] == 0:
+                        if command["async"]:
+                            return await command["function"](message, self.client, args)
 
 
 logger = logging.getLogger("armadyne")
@@ -108,6 +111,13 @@ async def mark_rent_paid(ctx):
 
 
 @bot.command()
+async def unmark_rent_paid(ctx):
+    """Unmarks rent as paid for the month."""
+    db_handler.set_rent_paid(False)
+    await ctx.send("Rent has been unmarked as paid for this month.")
+
+
+@bot.command()
 async def check_rent_status(ctx):
     """Checks if rent has been marked as paid for the month."""
     if db_handler.is_rent_paid():
@@ -149,7 +159,6 @@ async def sunset_reminder():
             print("Sending sunset reminder.")  # Debug point 5
             await send_sunset_reminder()
             current_date += timedelta(days=1)
-            print(f"Incremented current_date to {current_date}.")  # Debug point 6
             await asyncio.sleep(
                 (sunset_time - now).total_seconds()
             )  # Sleep until sunset
