@@ -8,3 +8,7 @@ CREATE TABLE IF NOT EXISTS rent_status (
     rent_paid BOOLEAN NOT NULL,
     PRIMARY KEY (year, month)
 );
+
+CREATE TABLE IF NOT EXISTS rent_reminders (
+    date TEXT PRIMARY KEY
+);

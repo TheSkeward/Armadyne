@@ -1,4 +1,6 @@
 # bot.py
+
+
 import asyncio
 import calendar
 import logging
@@ -20,6 +22,7 @@ from db_handler import DBHandler
 class CommandHandler:
 
     # constructor
+
     def __init__(self, client):
         self.client = client
         self.commands = []
@@ -40,6 +43,12 @@ class CommandHandler:
                             return await message.channel.send(
                                 str(command["function"](message, self.client, args))
                             )
+                    else:
+                        if len(args) >= command["args_num"]:
+                            if command["async"]:
+                                return await command["function"](
+                                    message, self.client, args
+                                )
 
 
 load_dotenv()
@@ -83,7 +92,6 @@ async def on_ready():
     if bot.sunset_reminder_task:
         bot.sunset_reminder_task.cancel()
         logger.info("Old sunset reminder task cancelled")
-
     bot.sunset_reminder_task = bot.loop.create_task(sunset_reminder())
 
 
@@ -132,52 +140,62 @@ async def check_rent_status(ctx):
 async def sunset_reminder():
     await bot.wait_until_ready()
     tz = pytz.timezone(location_timezone)
-    current_date = datetime.now(tz).date()
 
     while not bot.is_closed():
         now = datetime.now(tz)
         today = now.date()
 
-        if now.day == 1:
+        # Reset rent paid status on the 2nd day of each month
+
+        if now.day == 2:
             db_handler.set_rent_paid(False)
             logger.info("Reset rent paid status for the new month.")
+        # Calculate sunset times
 
-        if today > current_date:
-            current_date = today
-
-        s = sun(location_info.observer, date=current_date)
+        s = sun(location_info.observer, date=today)
         sunset_time = s["sunset"]
         sunset_warning_time = sunset_time - timedelta(minutes=15)
 
+        # Handle sunset reminder
+
         if sunset_warning_time <= now < sunset_time:
             await send_sunset_reminder()
-            current_date += timedelta(days=1)
             await asyncio.sleep((sunset_time - now).total_seconds())
+        elif now < sunset_warning_time:
+            await asyncio.sleep((sunset_warning_time - now).total_seconds())
+        # Handle rent reminder
 
-        elif now >= sunset_time:
-            current_date += timedelta(days=1)
+        await check_and_send_rent_reminder(now)
 
-        else:
-            time_until_warning = (sunset_warning_time - now).total_seconds()
-            await asyncio.sleep(time_until_warning)
+        # Sleep until the next day
 
-        last_day_of_month = calendar.monthrange(today.year, today.month)[1]
-        reminder_start_day = last_day_of_month - 4
+        tomorrow = datetime.combine(
+            today + timedelta(days=1), datetime.min.time()
+        ).replace(tzinfo=tz)
+        await asyncio.sleep((tomorrow - now).total_seconds())
 
-        if (
-            reminder_start_day <= today.day <= last_day_of_month
-            and not db_handler.is_rent_paid()
-        ):
-            await send_rent_reminder()
 
-        await asyncio.sleep(1)
+async def check_and_send_rent_reminder(now):
+    last_day_of_month = calendar.monthrange(now.year, now.month)[1]
+    days_until_end_of_month = last_day_of_month - now.day
+
+    if days_until_end_of_month <= 5 and not db_handler.is_rent_paid():
+        await send_rent_reminder()
 
 
 async def send_rent_reminder():
     rent_message = "A friendly reminder: Rent is due soon!"
     rent_channel = bot.get_channel(bot.rent_reminder_channel_id)
-    await rent_channel.send(rent_message)
-    logger.info("Sent rent reminder to channel %s", bot.rent_reminder_channel_id)
+
+    # Check if a reminder has already been sent today
+
+    today = datetime.now().date()
+    if not db_handler.reminder_sent_today(today):
+        await rent_channel.send(rent_message)
+        db_handler.log_reminder_sent(today)
+        logger.info("Sent rent reminder to channel %s", bot.rent_reminder_channel_id)
+    else:
+        logger.info("Rent reminder already sent today, skipping")
 
 
 async def send_sunset_reminder():

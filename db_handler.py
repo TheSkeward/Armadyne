@@ -51,3 +51,15 @@ class DBHandler:
         )
         row = self.cursor.fetchone()
         return row and row["rent_paid"]
+
+    def reminder_sent_today(self, date):
+        self.cursor.execute(
+            "SELECT * FROM rent_reminders WHERE date = ?;", (date.isoformat(),)
+        )
+        return self.cursor.fetchone() is not None
+
+    def log_reminder_sent(self, date):
+        self.cursor.execute(
+            "INSERT INTO rent_reminders (date) VALUES (?);", (date.isoformat(),)
+        )
+        self.conn.commit()
