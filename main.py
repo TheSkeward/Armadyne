@@ -49,6 +49,10 @@ class CommandHandler:
                                 return await command["function"](
                                     message, self.client, args
                                 )
+                            else:
+                                return await message.channel.send(
+                                    str(command["function"](message, self.client, args))
+                                )
 
 
 load_dotenv()
@@ -145,29 +149,21 @@ async def sunset_reminder():
         now = datetime.now(tz)
         today = now.date()
 
-        # Reset rent paid status on the 2nd day of each month
-
         if now.day == 2:
             db_handler.set_rent_paid(False)
             logger.info("Reset rent paid status for the new month.")
-        # Calculate sunset times
 
         s = sun(location_info.observer, date=today)
         sunset_time = s["sunset"]
         sunset_warning_time = sunset_time - timedelta(minutes=15)
-
-        # Handle sunset reminder
 
         if sunset_warning_time <= now < sunset_time:
             await send_sunset_reminder()
             await asyncio.sleep((sunset_time - now).total_seconds())
         elif now < sunset_warning_time:
             await asyncio.sleep((sunset_warning_time - now).total_seconds())
-        # Handle rent reminder
 
         await check_and_send_rent_reminder(now)
-
-        # Sleep until the next day
 
         tomorrow = datetime.combine(
             today + timedelta(days=1), datetime.min.time()
@@ -187,12 +183,10 @@ async def send_rent_reminder():
     rent_message = "A friendly reminder: Rent is due soon!"
     rent_channel = bot.get_channel(bot.rent_reminder_channel_id)
 
-    # Check if a reminder has already been sent today
-
-    today = datetime.now().date()
-    if not db_handler.reminder_sent_today(today):
+    tz = pytz.timezone(location_timezone)
+    if not db_handler.reminder_sent_today(tz):
         await rent_channel.send(rent_message)
-        db_handler.log_reminder_sent(today)
+        db_handler.log_reminder_sent(tz)
         logger.info("Sent rent reminder to channel %s", bot.rent_reminder_channel_id)
     else:
         logger.info("Rent reminder already sent today, skipping")

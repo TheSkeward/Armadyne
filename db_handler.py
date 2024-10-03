@@ -52,14 +52,16 @@ class DBHandler:
         row = self.cursor.fetchone()
         return row and row["rent_paid"]
 
-    def reminder_sent_today(self, date):
+    def reminder_sent_today(self, tz):
+        today = datetime.now(tz).date()
         self.cursor.execute(
-            "SELECT * FROM rent_reminders WHERE date = ?;", (date.isoformat(),)
+            "SELECT * FROM rent_reminders WHERE date = ?;", (today.isoformat(),)
         )
         return self.cursor.fetchone() is not None
 
-    def log_reminder_sent(self, date):
+    def log_reminder_sent(self, tz):
+        today = datetime.now(tz).date()
         self.cursor.execute(
-            "INSERT INTO rent_reminders (date) VALUES (?);", (date.isoformat(),)
+            "INSERT INTO rent_reminders (date) VALUES (?);", (today.isoformat(),)
         )
         self.conn.commit()
