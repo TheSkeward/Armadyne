@@ -53,6 +53,14 @@ class CommandHandler:
                                 return await message.channel.send(
                                     str(command["function"](message, self.client, args))
                                 )
+                        else:
+                            return await message.channel.send(
+                                'command "{}" requires {} argument(s) "{}"'.format(
+                                    command["trigger"],
+                                    command["args_num"],
+                                    ", ".join(command["args_name"]),
+                                )
+                            )
 
 
 load_dotenv()
@@ -155,6 +163,7 @@ async def sunset_reminder():
 
         s = sun(location_info.observer, date=today)
         sunset_time = s["sunset"]
+        logger.info(f"Sunset time today is {sunset_time} for {location_name}.")
         sunset_warning_time = sunset_time - timedelta(minutes=15)
 
         if sunset_warning_time <= now < sunset_time:
