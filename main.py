@@ -61,6 +61,8 @@ class CommandHandler:
                                     ", ".join(command["args_name"]),
                                 )
                             )
+                else:
+                    break
 
 
 load_dotenv()
@@ -97,6 +99,7 @@ location_info = LocationInfo(
 @bot.event
 async def on_ready():
     """Initialization"""
+    logger.info("Bot is ready!")
     db_handler.create_tables("tables.sql")
     logger.info("Connected to armadyne.db")
     logger.info("Logged in as %s (%s)", bot.user.name, bot.user.id)
