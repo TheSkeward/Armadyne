@@ -67,7 +67,7 @@ class CommandHandler:
 
 
 # create discord client
-client = discord.Client()
+client = discord.Client(intents=discord.Intents.all())
 load_dotenv()
 
 logger = logging.getLogger("armadyne")
