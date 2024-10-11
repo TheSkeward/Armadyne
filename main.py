@@ -67,6 +67,7 @@ class CommandHandler:
 
 
 # create discord client
+client = discord.Client()
 load_dotenv()
 
 logger = logging.getLogger("armadyne")
@@ -176,21 +177,31 @@ async def sunset_reminder():
 
         s = sun(location_info.observer, date=today)
         sunset_time = s["sunset"]
-        logger.info(f"Sunset time today is {sunset_time} for {location_name}.")
+        logger.info(
+            f"Sunset time today is {sunset_time} (timezone: {sunset_time.tzinfo}) for {location_name}."
+        )
         sunset_warning_time = sunset_time - timedelta(minutes=15)
+
+        now = datetime.now(tz)
 
         if sunset_warning_time <= now < sunset_time:
             await send_sunset_reminder()
-            await asyncio.sleep((sunset_time - now).total_seconds())
+            sleep_duration = (sunset_time - now).total_seconds()
+            await asyncio.sleep(sleep_duration)
         elif now < sunset_warning_time:
-            await asyncio.sleep((sunset_warning_time - now).total_seconds())
+            sleep_duration = (sunset_warning_time - now).total_seconds()
+            await asyncio.sleep(sleep_duration)
+        else:
+            tomorrow = now + timedelta(days=1)
+            next_day = tomorrow.date()
+            s = sun(location_info.observer, date=next_day)
+            sunset_time_utc = s["sunset"]
+            sunset_time = sunset_time_utc.astimezone(tz)
+            sunset_warning_time = sunset_time - timedelta(minutes=15)
+            sleep_duration = (sunset_warning_time - now).total_seconds()
+            await asyncio.sleep(sleep_duration)
 
         await check_and_send_rent_reminder(now)
-
-        tomorrow = datetime.combine(
-            today + timedelta(days=1), datetime.min.time()
-        ).replace(tzinfo=tz)
-        await asyncio.sleep((tomorrow - now).total_seconds())
 
 
 async def check_and_send_rent_reminder(now):
