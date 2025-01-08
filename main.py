@@ -69,6 +69,7 @@ class CommandHandler:
 # create discord client
 client = discord.Client(intents=discord.Intents.all())
 
+# token from https://discordapp.com/developers
 load_dotenv()
 
 logger = logging.getLogger("armadyne")
@@ -175,7 +176,6 @@ async def sunset_reminder():
         if now.day == 2:
             db_handler.set_rent_paid(False)
             logger.info("Reset rent paid status for the new month.")
-
         s = sun(location_info.observer, date=today, tzinfo=tz)
         sunset_time = s["sunset"]
         logger.info(
@@ -200,11 +200,12 @@ async def sunset_reminder():
             sunset_warning_time = sunset_time - timedelta(minutes=15)
             sleep_duration = (sunset_warning_time - now).total_seconds()
             await asyncio.sleep(sleep_duration)
-
         await check_and_send_rent_reminder(now)
 
 
 async def check_and_send_rent_reminder(now):
+    if db_handler.is_rent_paid():
+        return
     last_day_of_month = calendar.monthrange(now.year, now.month)[1]
     days_until_end_of_month = last_day_of_month - now.day
 
