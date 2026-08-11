@@ -1,73 +1,18 @@
-# bot.py
-
-
 import asyncio
 import calendar
 import logging
 import os
 import sys
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import discord
-import pytz
 from astral import LocationInfo
 from astral.sun import sun
 from discord.ext import commands
 from dotenv import load_dotenv
 
 from db_handler import DBHandler
-
-# command handler class
-
-
-class CommandHandler:
-
-    # constructor
-
-    def __init__(self, client):
-        self.client = client
-        self.commands = []
-
-    def add_command(self, command):
-        self.commands.append(command)
-
-    async def command_handler(self, message):
-        for command in self.commands:
-            if message.content.startswith(command["trigger"]):
-                args = message.content.split(" ")
-                if args[0] == command["trigger"]:
-                    args.pop(0)
-                    if command["arg_num"] == 0:
-                        if command["async"]:
-                            return await command["function"](message, self.client, args)
-                        else:
-                            return await message.channel.send(
-                                str(command["function"](message, self.client, args))
-                            )
-                    else:
-                        if len(args) >= command["args_num"]:
-                            if command["async"]:
-                                return await command["function"](
-                                    message, self.client, args
-                                )
-                            else:
-                                return await message.channel.send(
-                                    str(command["function"](message, self.client, args))
-                                )
-                        else:
-                            return await message.channel.send(
-                                'command "{}" requires {} argument(s) "{}"'.format(
-                                    command["trigger"],
-                                    command["args_num"],
-                                    ", ".join(command["args_name"]),
-                                )
-                            )
-                else:
-                    break
-
-
-# create discord client
-client = discord.Client(intents=discord.Intents.all())
 
 # token from https://discordapp.com/developers
 load_dotenv()
@@ -94,6 +39,12 @@ class SunsetReminderBot(commands.Bot):
 
 bot = SunsetReminderBot(intents=intents, command_prefix="$")
 
+for name in ["DISCORD_TOKEN", "ANNOUNCE_CHANNEL_ID", "RENT_REMINDER_CHANNEL_ID",
+             "LOCATION_NAME", "LOCATION_REGION", "LOCATION_TIMEZONE",
+             "LOCATION_LAT", "LOCATION_LON"]:
+    if not os.environ.get(name):
+        sys.exit(f"Cannot start: {name} is missing from the .env file")
+
 token = os.environ.get("DISCORD_TOKEN")
 bot.announce_channel_id = int(os.environ.get("ANNOUNCE_CHANNEL_ID"))
 bot.rent_reminder_channel_id = int(os.environ.get("RENT_REMINDER_CHANNEL_ID"))
@@ -103,7 +54,8 @@ location_timezone = os.environ.get("LOCATION_TIMEZONE")
 location_lat = float(os.environ.get("LOCATION_LAT"))
 location_lon = float(os.environ.get("LOCATION_LON"))
 
-db_handler = DBHandler("armadyne.db")
+tz = ZoneInfo(location_timezone)
+db_handler = DBHandler("armadyne.db", tz)
 location_info = LocationInfo(
     location_name, location_region, location_timezone, location_lat, location_lon
 )
@@ -167,40 +119,40 @@ async def check_rent_status(ctx):
 
 async def sunset_reminder():
     await bot.wait_until_ready()
-    tz = pytz.timezone(location_timezone)
 
     while not bot.is_closed():
-        now = datetime.now(tz)
-        today = now.date()
+        try:
+            now = datetime.now(tz)
+            today = now.date()
 
-        if now.day == 2:
-            db_handler.set_rent_paid(False)
-            logger.info("Reset rent paid status for the new month.")
-        s = sun(location_info.observer, date=today, tzinfo=tz)
-        sunset_time = s["sunset"]
-        logger.info(
-            f"Sunset time today is {sunset_time} (timezone: {sunset_time.tzinfo}) for {location_name}."
-        )
-        sunset_warning_time = sunset_time - timedelta(minutes=15)
-
-        now = datetime.now(tz)
-
-        if sunset_warning_time <= now < sunset_time:
-            await send_sunset_reminder()
-            sleep_duration = (sunset_time - now).total_seconds()
-            await asyncio.sleep(sleep_duration)
-        elif now < sunset_warning_time:
-            sleep_duration = (sunset_warning_time - now).total_seconds()
-            await asyncio.sleep(sleep_duration)
-        else:
-            tomorrow = now + timedelta(days=1)
-            next_day = tomorrow.date()
-            s = sun(location_info.observer, date=next_day, tzinfo=tz)
+            s = sun(location_info.observer, date=today, tzinfo=tz)
             sunset_time = s["sunset"]
+            logger.info(
+                f"Sunset time today is {sunset_time} (timezone: {sunset_time.tzinfo}) for {location_name}."
+            )
             sunset_warning_time = sunset_time - timedelta(minutes=15)
-            sleep_duration = (sunset_warning_time - now).total_seconds()
-            await asyncio.sleep(sleep_duration)
-        await check_and_send_rent_reminder(now)
+
+            now = datetime.now(tz)
+
+            if sunset_warning_time <= now < sunset_time:
+                await send_sunset_reminder()
+                sleep_duration = (sunset_time - now).total_seconds()
+                await asyncio.sleep(sleep_duration)
+            elif now < sunset_warning_time:
+                sleep_duration = (sunset_warning_time - now).total_seconds()
+                await asyncio.sleep(sleep_duration)
+            else:
+                tomorrow = now + timedelta(days=1)
+                next_day = tomorrow.date()
+                s = sun(location_info.observer, date=next_day, tzinfo=tz)
+                sunset_time = s["sunset"]
+                sunset_warning_time = sunset_time - timedelta(minutes=15)
+                sleep_duration = (sunset_warning_time - now).total_seconds()
+                await asyncio.sleep(sleep_duration)
+            await check_and_send_rent_reminder(datetime.now(tz))
+        except Exception:
+            logger.exception("Reminder loop hit an error; retrying in 60 seconds")
+            await asyncio.sleep(60)
 
 
 async def check_and_send_rent_reminder(now):
@@ -209,7 +161,7 @@ async def check_and_send_rent_reminder(now):
     last_day_of_month = calendar.monthrange(now.year, now.month)[1]
     days_until_end_of_month = last_day_of_month - now.day
 
-    if days_until_end_of_month <= 5 and not db_handler.is_rent_paid():
+    if days_until_end_of_month <= 5:
         await send_rent_reminder()
 
 
@@ -217,10 +169,9 @@ async def send_rent_reminder():
     rent_message = "A friendly reminder: Rent is due soon!"
     rent_channel = bot.get_channel(bot.rent_reminder_channel_id)
 
-    tz = pytz.timezone(location_timezone)
-    if not db_handler.reminder_sent_today(tz):
+    if not db_handler.reminder_sent_today():
         await rent_channel.send(rent_message)
-        db_handler.log_reminder_sent(tz)
+        db_handler.log_reminder_sent()
         logger.info("Sent rent reminder to channel %s", bot.rent_reminder_channel_id)
     else:
         logger.info("Rent reminder already sent today, skipping")
