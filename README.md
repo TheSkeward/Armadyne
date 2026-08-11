@@ -1,42 +1,50 @@
 # Armadyne
-Armadyne is a Discord bot that sends sunset reminders to users who opt-in to receive them, plus rent reminders toward the end of each month. This bot is useful for groups of people who want to be reminded when it's time to finish up outdoor activities before sunset.
 
-For day-to-day operation (checking on the bot, restarting it, fixing the token), see [RUNBOOK.md](RUNBOOK.md).
+A Discord bot for a shared household:
+
+- **Sunset reminders** - pings opted-in users in an announcement channel 15 minutes before sunset, calculated for a configured location.
+- **Rent reminders** - posts in a rent channel daily during the last 5 days of the month until rent is marked paid. The paid status resets each month.
+
+To operate a bot that's already running, see [RUNBOOK.md](RUNBOOK.md).
+
+## Prerequisites
+
+- Python 3.9 or newer.
+- A Discord bot application. To create one at https://discord.com/developers/applications:
+  - On the **Bot** tab, enable all three Privileged Gateway Intents and copy the token.
+  - Invite the bot to your server: **OAuth2 → URL Generator**, select the `bot` scope with the Send Messages permission, and open the generated URL.
 
 ## Setup
-1. Get the code (either `git clone` as below, or use GitHub's Code → Download ZIP button and unzip it):
+
+Get the code (`git clone https://github.com/TheSkeward/Armadyne.git`, or download a ZIP from GitHub). From the project folder:
+
 ```bash
-git clone https://github.com/TheSkeward/Armadyne.git
-cd Armadyne
-```
-2. In a terminal in that folder, create a virtual environment and install dependencies (requires Python 3.9 or newer):
-```bash
-python3 -m venv env          # on Windows: py -m venv env
-source env/bin/activate      # on Windows: env\Scripts\activate
+python3 -m venv env              # Windows: py -m venv env
+source env/bin/activate          # Windows: env\Scripts\activate
 pip install -r requirements.txt
-```
-3. Copy `.env.example` to a new file named `.env` (a plain text file - any text editor works) and fill it in:
-```bash
 cp .env.example .env
 ```
-- `DISCORD_TOKEN`: Your Discord bot token, from https://discord.com/developers/applications. If you're creating a new bot application there, enable all three Privileged Gateway Intents on its Bot tab, then invite the bot to your server: OAuth2 tab → URL Generator → tick `bot`, tick Send Messages → open the generated URL.
-- `ANNOUNCE_CHANNEL_ID`: The ID of the channel where the bot will send sunset reminders. (Enable Developer Mode in Discord's settings, then right-click a channel to copy its ID.)
-- `RENT_REMINDER_CHANNEL_ID`: The ID of the channel where the bot will send rent reminders.
-- `LOCATION_NAME`: The name of the location where you want to calculate sunset times.
-- `LOCATION_REGION`: The region of the location where you want to calculate sunset times.
-- `LOCATION_TIMEZONE`: The timezone of the location (e.g. `America/Los_Angeles`).
-- `LOCATION_LAT`: The latitude of the location where you want to calculate sunset times.
-- `LOCATION_LON`: The longitude of the location where you want to calculate sunset times.
-4. Run the bot:
+
+Fill in `.env`:
+
+- `DISCORD_TOKEN`: the bot token.
+- `ANNOUNCE_CHANNEL_ID`, `RENT_REMINDER_CHANNEL_ID`: channels for sunset and rent reminders. To copy an ID, enable **Settings → Advanced → Developer Mode** in Discord, then right-click the channel.
+- `LOCATION_TIMEZONE`: an IANA timezone, e.g. `America/Los_Angeles`.
+- `LOCATION_LAT`, `LOCATION_LON`: coordinates for the sunset calculation.
+- `LOCATION_NAME`, `LOCATION_REGION`: display labels; any text.
+
+Run:
+
 ```bash
 python main.py
 ```
-The bot creates its database (`armadyne.db`) automatically on first run.
+
+The bot creates its database (`armadyne.db`) on first run. If a required setting is missing, it exits with a `Cannot start:` message naming the setting.
 
 ## Usage
-Once the bot is running, users can opt-in to receive sunset reminders by typing `$optin` in any channel. They can opt-out at any time by typing `$optout`. The bot will automatically send a reminder to the specified channel 15 minutes before sunset every day. Users who have opted in will be mentioned in the reminder message.
 
-During the last 5 days of the month, the bot also posts a daily rent reminder until someone runs `$mark_rent_paid`. See `$help` for all commands, including `$unmark_rent_paid` and `$check_rent_status`.
+Users opt in to sunset pings with `$optin` and out with `$optout`. Rent is tracked with `$mark_rent_paid`, `$unmark_rent_paid`, and `$check_rent_status`. [RUNBOOK.md](RUNBOOK.md) has the full command reference and troubleshooting.
 
 ## Contributing
+
 If you find a bug or have a feature request, please open an issue on GitHub. Pull requests are welcome.

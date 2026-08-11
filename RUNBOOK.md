@@ -1,29 +1,36 @@
 # Armadyne Runbook
 
-Day-to-day guide for whoever looks after the bot. No programming knowledge needed.
+Operating guide for the running bot. For setup on a new machine, see [README.md](README.md).
 
 ## What the bot does
-- About 15 minutes before sunset each day, it pings everyone who opted in, in the announcements channel.
-- During the last 5 days of the month, it posts a rent reminder once a day in the rent channel, until someone marks rent as paid.
-- When a new month starts, rent counts as "not paid yet" again automatically.
+
+- Pings opted-in users in the announcements channel about 15 minutes before sunset.
+- Posts a daily rent reminder in the rent channel during the last 5 days of the month, until rent is marked paid.
+- Resets the rent-paid status at the start of each month.
 
 ## Commands
-| Command | What it does |
+
+Commands work in any channel the bot can read.
+
+| Command | Effect |
 | --- | --- |
-| `$optin` | Start getting sunset pings |
-| `$optout` | Stop getting sunset pings |
-| `$mark_rent_paid` | Rent is paid this month; stop the reminders |
-| `$unmark_rent_paid` | Undo that, if it was marked by mistake |
-| `$check_rent_status` | Ask whether rent is marked paid |
-| `$help` | List all commands |
+| `$optin` | Receive sunset pings |
+| `$optout` | Stop receiving sunset pings |
+| `$mark_rent_paid` | Mark rent paid for this month; stops reminders |
+| `$unmark_rent_paid` | Clear the paid mark |
+| `$check_rent_status` | Show whether rent is marked paid |
+| `$help` | List commands |
 
-## If the bot is offline or not responding
-Restart it: on the machine where it runs, stop the old process if one is still going, then run `python main.py` in the bot's folder. Restarting is always safe - the bot can't lose anything important. If it prints a message starting with "Cannot start:", that message names the exact setting to fix in the `.env` file. If it instead stops with a long wall of error text, read its last line - that's the actual problem; everything above it is just where it happened.
+## Troubleshooting
 
-If Discord rejected the token, get a fresh one at https://discord.com/developers/applications (open the bot's application, Bot tab, "Reset Token"), put it in `.env` as `DISCORD_TOKEN`, and restart. No access to the old application? Create a new one - see the README's Setup section; nothing of value is lost.
+The bot stays online only while its process is running; a reboot or crash takes it offline until it's started again. Restarting is always safe: stop any old process, then run `python main.py` in the bot's folder. To restart automatically, run it as a service.
 
-## Good to know
-- The bot needs an always-on computer, but any one will do. Setting it up on a new machine is the README's Setup section.
-- It only runs while its terminal window stays open - if the window closes or the machine sleeps, the bot goes offline until someone starts it again.
-- Its memory (`armadyne.db`) only stores who opted in and whether rent is paid this month. If it's ever lost, people just type `$optin` again - no backups needed.
-- The `.env` file contains the bot's secret token. Don't share its contents.
+Startup failures print a `Cannot start:` message naming the `.env` setting to fix. Other errors exit with a traceback; the last line is the actual error.
+
+If Discord rejects the token, reset it at https://discord.com/developers/applications (the bot's application → **Bot** tab → **Reset Token**), update `DISCORD_TOKEN` in `.env`, and restart. Without access to the application, create a new one (see the README) - the bot keeps nothing that can't be recreated.
+
+## Notes
+
+- The database (`armadyne.db`) holds only opt-ins and the current month's rent status. If it's lost, users re-run `$optin`; no backups needed.
+- `.env` contains the bot token; keep it private.
+- Any always-on machine can host the bot.
